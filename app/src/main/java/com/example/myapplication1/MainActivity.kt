@@ -1,4 +1,4 @@
-package com.example.myapplication // ⬅️ 사용자님 프로젝트 이름 확인!
+package com.example.myapplication1 // ⬅️ 사용자님 프로젝트 이름 확인!
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -13,7 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.myapplication.ui.theme.MyApplicationTheme // ⬅️ 사용자님 테마 이름 확인!
+import com.example.myapplication1.ui.theme.MyApplicationTheme // ⬅️ 사용자님 테마 이름 확인!
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
