@@ -6,7 +6,6 @@ import android.bluetooth.*
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
-import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -21,9 +20,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.ActivityCompat
 import com.example.myapplication1.ui.theme.MyApplicationTheme
-import java.util.*
+// 🔥 Firestore 관련 Import 추가
+import com.google.firebase.firestore.FirebaseFirestore
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+import java.util.UUID
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,6 +60,42 @@ class MainActivity : ComponentActivity() {
 val SERVICE_UUID = UUID.fromString("0000180C-0000-1000-8000-00805F9B34FB")
 val CHAR_UUID    = UUID.fromString("00002A56-0000-1000-8000-00805F9B34FB")
 
+// 🔥 Firestore 저장 함수: 문서 ID와 필드 Timestamp를 KST로 저장
+fun saveSensorDataKst(gas: String, shock: String, dist: String) {
+    // Android Studio 환경에서는 Firebase SDK가 프로젝트에 초기화되어 있다고 가정합니다.
+    val db = FirebaseFirestore.getInstance()
+
+    // 1. 현재 한국 시간(KST) 포맷 생성 (필드에 저장할 시간 문자열)
+    val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.KOREA)
+    // 타임존을 'Asia/Seoul'로 명시적으로 설정하여 KST를 보장합니다.
+    sdf.timeZone = TimeZone.getTimeZone("Asia/Seoul")
+    val currentTimeString = sdf.format(Date())
+
+    // 2. 문서 ID로 사용할 시간 포맷 (밀리초까지 포함하여 고유성 확보)
+    val idFormat = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.KOREA)
+    idFormat.timeZone = TimeZone.getTimeZone("Asia/Seoul")
+    val documentId = idFormat.format(Date())
+
+    // 3. 필드에 저장할 데이터 구성
+    val data = hashMapOf(
+        "gas" to gas,
+        "shock" to shock,
+        "distance" to dist,
+        "timestamp_kst" to currentTimeString // KST 문자열 시간 저장
+    )
+
+    // 4. set()을 사용하여 지정된 문서 ID로 저장
+    db.collection("sensorData")
+        .document(documentId)
+        .set(data)
+        .addOnSuccessListener {
+            println("✅ Firestore 저장 성공 - ID: $documentId, Data: $gas/$shock/$dist")
+        }
+        .addOnFailureListener { e ->
+            println("❌ Firestore 저장 실패: ${e.localizedMessage}")
+        }
+}
+
 @SuppressLint("MissingPermission")
 @Composable
 fun BleSensorScreen() {
@@ -68,8 +108,8 @@ fun BleSensorScreen() {
     var shockValue by remember { mutableStateOf("0") }
     var distValue by remember { mutableStateOf("0") }
 
-    // BLE 연결 관리자 (코드 생략)
-    val gattCallback = remember { /* ... (GATT 콜백 로직 유지) ... */
+    // BLE 연결 관리자
+    val gattCallback = remember {
         object : BluetoothGattCallback() {
             override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
                 if (newState == BluetoothProfile.STATE_CONNECTED) {
@@ -96,9 +136,17 @@ fun BleSensorScreen() {
                 val data = characteristic.getStringValue(0)
                 val parts = data.split(",")
                 if (parts.size == 3) {
-                    gasValue = parts[0]
-                    shockValue = parts[1]
-                    distValue = parts[2]
+                    val newGas = parts[0]
+                    val newShock = parts[1]
+                    val newDist = parts[2]
+
+                    // Compose 상태 업데이트
+                    gasValue = newGas
+                    shockValue = newShock
+                    distValue = newDist
+
+                    // 🔥 Firestore에 실시간 데이터 저장 (KST ID/Timestamp 사용)
+                    saveSensorDataKst(newGas, newShock, newDist)
                 }
             }
         }
@@ -106,7 +154,7 @@ fun BleSensorScreen() {
 
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, // ⬅️ [정렬 변경] 전체를 왼쪽 정렬로 변경
+        horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Text("작업자 안전 (BLE 버전)", fontSize = 24.sp, fontWeight = FontWeight.Bold)
@@ -114,7 +162,7 @@ fun BleSensorScreen() {
         Text("상태: $connectionStatus", color = Color.Gray,fontSize = 18.sp,fontWeight = FontWeight.Bold )
         Spacer(modifier = Modifier.height(20.dp))
 
-        // [BLE 연결 버튼] ⬅️ [색상 변경] 하늘색으로 변경
+        // [BLE 연결 버튼]
         Button(
             onClick = {
                 connectionStatus = "장치 검색 중..."
@@ -129,9 +177,9 @@ fun BleSensorScreen() {
                     }
                 })
             },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF03A9F4)) // ⬅️ 하늘색 (Sky Blue)
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF03A9F4)) // 하늘색 (Sky Blue)
         ) {
-            Text("BLE 장치 연결하기", color = Color.White) // ⬅️ 텍스트 색상 하얀색으로 유지
+            Text("BLE 장치 연결하기", color = Color.White)
         }
 
         Spacer(modifier = Modifier.height(40.dp))
@@ -152,7 +200,7 @@ fun BleSensorScreen() {
         // 충격 감지 설정
         val shockIsDanger = shockValue == "1"
 
-        // 2. 충격 감지 카드0000
+        // 2. 충격 감지 카드
         val shockColor = if (shockIsDanger) Color.Red else Color(0xFF0D47A1)
         val shockText = if (shockValue == "1") "충격 감지!" else "정상"
         DataCard("충격 감지", shockText, "", shockColor)
@@ -166,7 +214,7 @@ fun BleSensorScreen() {
 }
 
 // ------------------------------------------------------------------
-// GasDataCard (가스 농도 전용 - 4분할 레이아웃) ⬅️ [사이즈/정렬 변경]
+// GasDataCard (가스 농도 전용 - 4분할 레이아웃)
 // ------------------------------------------------------------------
 
 @Composable
@@ -187,7 +235,7 @@ fun GasDataCard(gasValue: String, gasIsDanger: Boolean, dangerThreshold: Int) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // [왼쪽 영역: 센서 이름 및 상태 텍스트] ⬅️ [정렬/사이즈 변경]
+            // [왼쪽 영역: 센서 이름 및 상태 텍스트]
             Column(
                 horizontalAlignment = Alignment.Start,
                 modifier = Modifier.weight(1f)
@@ -195,34 +243,34 @@ fun GasDataCard(gasValue: String, gasIsDanger: Boolean, dangerThreshold: Int) {
                 Text(
                     text = "가스 농도",
                     color = Color.White,
-                    fontSize = 20.sp, // ⬅️ 20sp로 통일
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = statusText,
                     color = Color.White,
-                    fontSize = 20.sp, // ⬅️ 20sp로 통일
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
             }
 
-            // [오른쪽 영역: 평균 농도 및 현재 농도] ⬅️ [정렬/사이즈 변경]
+            // [오른쪽 영역: 평균 농도 및 현재 농도]
             Column(
-                horizontalAlignment = Alignment.Start, // ⬅️ 오른쪽도 왼쪽 정렬로 변경
+                horizontalAlignment = Alignment.Start,
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
                     text = "평균 농도: $dangerThreshold",
                     color = Color.White,
-                    fontSize = 20.sp, // ⬅️ 20sp로 통일
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "현재 농도: $gasValue",
                     color = Color.White,
-                    fontSize = 20.sp, // ⬅️ 20sp로 통일
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.ExtraBold
                 )
             }
@@ -230,15 +278,14 @@ fun GasDataCard(gasValue: String, gasIsDanger: Boolean, dangerThreshold: Int) {
     }
 }
 
-// DataCard (충격 및 거리 센서용) ⬅️ [사이즈/정렬 변경]
+// DataCard (충격 및 거리 센서용)
 @Composable
 fun DataCard(title: String, value: String, unit: String, color: Color) {
     Card(modifier = Modifier.fillMaxWidth().padding(8.dp), colors = CardDefaults.cardColors(containerColor = color)) {
-        // ⬅️ [정렬 변경] 가운데 정렬에서 왼쪽 정렬로 변경
+        // 가운데 정렬에서 왼쪽 정렬로 변경
         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.Start) {
-            Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) // ⬅️ 20sp로 통일
-            // Text(value + unit, ...) 두 줄을 합치지 않고 20sp로 통일
-            Text(value + unit, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) // ⬅️ 20sp로 통일
+            Text(title, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Text(value + unit, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
