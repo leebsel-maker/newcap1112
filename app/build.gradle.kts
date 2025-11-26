@@ -61,4 +61,11 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:34.6.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-firestore")
+    // 🔥 위치 서비스 (GPS) 사용을 위한 라이브러리 추가
+    implementation("com.google.android.gms:play-services-location:21.0.1")
+    // 🔥 Google Maps Compose 통합 라이브러리 추가
+    implementation("com.google.maps.android:maps-compose:3.1.0")
+
+    // Google Maps Platform Services (일반적인 지도 기능)
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
 }

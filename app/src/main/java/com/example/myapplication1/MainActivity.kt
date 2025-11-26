@@ -96,6 +96,11 @@ fun saveSensorDataKst(gas: String, shock: String, dist: String) {
         }
 }
 
+// 🎨 **수정된 색상 정의:** 버튼 색상 (중간톤 블루)
+val ActionBlue = Color(0xFF42A5F5)
+// 🎨 **수정된 색상 정의:** 안전 녹색 (정상 상태 배경색) - 가독성 높은 짙은 청록색 계열
+val SafetyGreen = Color(0XFF00897B)
+
 @SuppressLint("MissingPermission")
 @Composable
 fun BleSensorScreen() {
@@ -177,7 +182,7 @@ fun BleSensorScreen() {
                     }
                 })
             },
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF03A9F4)) // 하늘색 (Sky Blue)
+            colors = ButtonDefaults.buttonColors(containerColor = ActionBlue) // 🎨 액션 블루 유지
         ) {
             Text("BLE 장치 연결하기", color = Color.White)
         }
@@ -191,6 +196,7 @@ fun BleSensorScreen() {
         val gasIsDanger = gasInt > GAS_DANGER_THRESHOLD
 
         // 1. 가스 농도 카드: 4분할 디자인
+        // 🎨 정상: SafetyGreen, 위험: Red
         GasDataCard(
             gasValue = gasValue,
             gasIsDanger = gasIsDanger,
@@ -201,13 +207,24 @@ fun BleSensorScreen() {
         val shockIsDanger = shockValue == "1"
 
         // 2. 충격 감지 카드
-        val shockColor = if (shockIsDanger) Color.Red else Color(0xFF0D47A1)
-        val shockText = if (shockValue == "1") "충격 감지!" else "정상"
+        // 🎨 정상: SafetyGreen, 위험: Red
+        val shockColor = if (shockIsDanger) Color.Red else SafetyGreen // 🎨 SafetyGreen 적용
+        val shockText = if (shockValue == "1") "충격 감지! 💥" else "정상 👍"
         DataCard("충격 감지", shockText, "", shockColor)
 
-        // 3. 안전고리 카드 (거리)
-        val distColor = Color(0XFF00897B)
-        DataCard("안전고리", distValue, "cm", distColor)
+        // 3. 안전고리 카드 (거리 -> 체결/미체결 로직 적용)
+        val DIST_THRESHOLD_CM = 3 // 🔥 임시 기준: 3cm 초과 시 미체결(위험)
+
+        // 주의: 3cm 초과(> 3)이면 미체결/위험
+        val distInt = distValue.toIntOrNull() ?: 999
+        val distIsUnfastened = distInt <= DIST_THRESHOLD_CM // 3cm 초과 시 미체결
+
+        // 🎨 미체결(위험): Red, 체결(정상): SafetyGreen
+        val distColor = if (distIsUnfastened) Color.Red else SafetyGreen
+        val distStatusText = if (distIsUnfastened) "미체결! 🚨" else "체결 👍"
+
+        // DataCard 호출: 거리 값 대신 상태 텍스트 전달
+        DataCard("안전고리 상태", distStatusText, "", distColor)
 
         // -------------------------------------------------
     }
@@ -219,8 +236,8 @@ fun BleSensorScreen() {
 
 @Composable
 fun GasDataCard(gasValue: String, gasIsDanger: Boolean, dangerThreshold: Int) {
-    val cardColor = if (gasIsDanger) Color.Red else Color(0xFF00897B)
-    val statusText = if (gasIsDanger) "평균 초과!!" else "정상"
+    val cardColor = if (gasIsDanger) Color.Red else SafetyGreen // 🎨 SafetyGreen 적용
+    val statusText = if (gasIsDanger) "평균 초과! ⚠️" else "정상 👍"
 
     Card(
         modifier = Modifier
@@ -228,6 +245,7 @@ fun GasDataCard(gasValue: String, gasIsDanger: Boolean, dangerThreshold: Int) {
             .padding(8.dp),
         colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
+// (내부 텍스트 로직은 그대로 유지)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -278,7 +296,7 @@ fun GasDataCard(gasValue: String, gasIsDanger: Boolean, dangerThreshold: Int) {
     }
 }
 
-// DataCard (충격 및 거리 센서용)
+// DataCard (충격 및 안전고리 센서용)
 @Composable
 fun DataCard(title: String, value: String, unit: String, color: Color) {
     Card(modifier = Modifier.fillMaxWidth().padding(8.dp), colors = CardDefaults.cardColors(containerColor = color)) {
